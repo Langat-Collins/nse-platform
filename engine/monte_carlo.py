@@ -1,7 +1,7 @@
 """
 MONTE CARLO SIMULATION ENGINE
-Box-Muller transform for normal distributions.
-Mirrors the VBA code in DCF & SCENARIOS exactly.
+Uses Log-Normal distribution to prevent negative stock prices.
+S_T = S_0 * exp((mu - sigma^2/2)*T + sigma*sqrt(T)*Z)
 """
 
 import math
@@ -11,41 +11,48 @@ from engine.valuation import dcf_valuation
 
 
 def box_muller():
-    """
-    Generate a standard normal variate using Box-Muller transform.
-    Mirrors the VBA: z1 = Sqr(-2*Log(u1)) * Cos(6.283185*u2)
-    """
+    """Generate a standard normal variate using Box-Muller transform."""
     u1 = random.random()
     if u1 == 0:
         u1 = 0.0001
     u2 = random.random()
     if u2 == 0:
         u2 = 0.0001
-    
     z1 = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
     return z1
 
 
 def run_monte_carlo(base_fcf, wacc_mu, terminal_growth_mu, growth_1_mu,
                     shares_outstanding, net_debt, iterations=1000,
-                    g1_sd=0.035, tg_sd=0.012, wacc_sd=0.018):
+                    g1_sd=0.035, tg_sd=0.012, wacc_sd=0.018,
+                    current_price=None):
     """
-    Monte Carlo simulation for IV/Share distribution.
+    Monte Carlo simulation using Log-Normal distribution.
+    Ensures IV/Share never goes negative.
     """
     results = []
     
+    # Use log-normal for growth rates to prevent negative values
     for i in range(iterations):
-        # Generate random parameters using Box-Muller
-        g1 = growth_1_mu + g1_sd * box_muller()
-        tg = terminal_growth_mu + tg_sd * box_muller()
-        wacc = wacc_mu + wacc_sd * box_muller()
+        # Generate random parameters using Box-Muller (standard normal)
+        z_g1 = box_muller()
+        z_tg = box_muller()
+        z_wacc = box_muller()
         
-        # Constrain values (mirrors VBA clamping)
-        g1 = max(-0.30, min(0.50, g1))
-        tg = max(0.01, tg)
+        # Apply Log-Normal transform to growth rates
+        # LN(mu, sigma) -> exp(normal)
+        # Keeps growth rates positive
+        g1 = growth_1_mu * math.exp(g1_sd * z_g1 - 0.5 * g1_sd**2)
+        tg = terminal_growth_mu * math.exp(tg_sd * z_tg - 0.5 * tg_sd**2)
+        wacc = wacc_mu * math.exp(wacc_sd * z_wacc - 0.5 * wacc_sd**2)
+        
+        # Constrain values to realistic ranges
+        g1 = max(0.01, min(0.50, g1))
+        tg = max(0.01, min(0.10, tg))
+        wacc = max(0.08, min(0.30, wacc))
+        
         if wacc <= tg:
             tg = wacc - 0.005
-        wacc = max(0.08, min(0.30, wacc))
         
         # Run DCF with these random parameters
         try:
@@ -59,18 +66,19 @@ def run_monte_carlo(base_fcf, wacc_mu, terminal_growth_mu, growth_1_mu,
             
             equity_value = dcf_result["enterprise_value"] - net_debt
             iv_per_share = equity_value / shares_outstanding * 1000
-            results.append(iv_per_share)
+            
+            # Only include positive IVs (shouldn't happen with log-normal, but safety check)
+            if iv_per_share > 0:
+                results.append(iv_per_share)
         except:
             continue
     
     if not results:
         return None
     
-    # Sort results for percentile calculation
     results.sort()
     n = len(results)
     
-    # Calculate statistics
     mean_iv = np.mean(results)
     std_iv = np.std(results)
     
@@ -82,15 +90,15 @@ def run_monte_carlo(base_fcf, wacc_mu, terminal_growth_mu, growth_1_mu,
         "median": results[int(n * 0.50)],
         "p75": results[int(n * 0.75)],
         "p95": results[int(n * 0.95)],
+        "min": results[0],
+        "max": results[-1],
         "iterations": n,
         "distribution": results
     }
 
 
 def monte_carlo_probability_analysis(results, thresholds, current_price):
-    """
-    Calculate probability of IV exceeding various thresholds.
-    """
+    """Calculate probability of IV exceeding various thresholds."""
     if not results or not results.get("distribution"):
         return None
     
@@ -126,9 +134,7 @@ def monte_carlo_probability_analysis(results, thresholds, current_price):
 
 
 def calculate_margin_of_safety_distribution(results, current_price):
-    """
-    Calculate margin of safety distribution from Monte Carlo results.
-    """
+    """Calculate margin of safety distribution from Monte Carlo results."""
     if not results or not results.get("distribution"):
         return None
     
