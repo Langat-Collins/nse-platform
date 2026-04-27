@@ -26,18 +26,14 @@ if not fy_data:
     st.warning("No FY2024 data found.")
     st.stop()
 
+# Default prices by ticker
+DEFAULT_PRICES = {"SCOM": 29.90, "EQTY": 75.50, "KCB": 68.75, "EABL": 245.00}
+
 # Sidebar inputs
 with st.sidebar:
     st.subheader("Memo Settings")
-        # Try live price first
-    try:
-        from engine.market_data import fetch_our_prices
-        prices = fetch_our_prices()
-        live_p = prices.get(selected_ticker, {}).get("price") if "error" not in prices else None
-        default_price = live_p if live_p else 18.50
-    except:
-        default_price = 18.50
     
+    default_price = DEFAULT_PRICES.get(selected_ticker, 50.00)
     share_price = st.number_input("Current Price (KES)", value=float(default_price), step=0.50)
     beta = st.number_input("Beta", value=0.86, step=0.01)
     analyst_name = st.text_input("Analyst Name", value="Institutional Research")
@@ -107,7 +103,7 @@ At the current market price of **KES {share_price:,.2f}**, our Discounted Cash F
 
 **WACC Components:**
 - Risk-Free Rate (91-Day T-Bill): {current_rf:.1f}%
-- Equity Risk Premium: {dcf['wacc_components']['cost_of_equity']:.1%} (CAPM)
+- Cost of Equity (CAPM): {dcf['wacc_components']['cost_of_equity']:.1%}
 - Cost of Debt (After-Tax): {dcf['wacc_components']['after_tax_cost_of_debt']:.1%}
 
 ---
