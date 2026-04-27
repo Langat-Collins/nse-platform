@@ -29,7 +29,16 @@ if not fy_data:
 # Sidebar inputs
 with st.sidebar:
     st.subheader("Memo Settings")
-    share_price = st.number_input("Current Price (KES)", value=18.50, step=0.50)
+        # Try live price first
+    try:
+        from engine.market_data import fetch_our_prices
+        prices = fetch_our_prices()
+        live_p = prices.get(selected_ticker, {}).get("price") if "error" not in prices else None
+        default_price = live_p if live_p else 18.50
+    except:
+        default_price = 18.50
+    
+    share_price = st.number_input("Current Price (KES)", value=float(default_price), step=0.50)
     beta = st.number_input("Beta", value=0.86, step=0.01)
     analyst_name = st.text_input("Analyst Name", value="Institutional Research")
     
