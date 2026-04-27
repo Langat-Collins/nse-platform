@@ -201,7 +201,7 @@ with tab1:
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("PV of Cash Flows", f"KES {dcf['pv_fcfs_sum']:,.0f}")
+        st.metric("PV of Cash Flows", f"KES {dcf.get('pv_fcfs_sum', dcf.get('enterprise_value_dcf', 0) - dcf.get('pv_terminal', 0)):,.0f}")
     with col2:
         st.metric("Terminal Value", f"KES {dcf['terminal_value']:,.0f}")
     with col3:
