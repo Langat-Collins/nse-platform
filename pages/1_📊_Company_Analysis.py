@@ -370,8 +370,7 @@ with tab3:
                 growth_1_mu=0.10,
                 shares_outstanding=fy_data["shares_outstanding"],
                 net_debt=analytics["derived_balance"]["net_debt"],
-                iterations=1000,
-                current_price=share_price
+                iterations=1000
             )
             
             if mc_results:
