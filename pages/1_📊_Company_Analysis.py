@@ -44,17 +44,21 @@ if "beta_5y" not in fy_data:
 with st.sidebar:
     st.subheader("📈 Market Data")
     
-    # Try to fetch live price
-    from engine.market_data import get_single_price
-    live = get_single_price(selected_ticker)
-    live_price = live.get("price") if live else None
+    # Try to fetch live price (with fallback)
+    live_price = None
+    try:
+        from engine.market_data import get_single_price
+        live = get_single_price(selected_ticker)
+        live_price = live.get("price") if live else None
+    except:
+        pass
     
     if live_price:
         st.success(f"📡 Live Price: KES {live_price:,.2f}")
         default_price = live_price
     else:
-        st.warning("⚠️ Could not fetch live price")
-        default_price = float(fy_data.get("share_price", 0))
+        st.info("💡 Enter price manually (live feed unavailable)")
+        default_price = float(fy_data.get("share_price", 0)) or 18.50
     
     share_price = st.number_input("Current Share Price (KES)", value=default_price, step=0.50)
     beta = st.number_input("Beta (5Y)", value=float(fy_data.get("beta_5y", 0.86)), step=0.01)
